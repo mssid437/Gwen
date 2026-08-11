@@ -186,9 +186,9 @@ public struct MenuBarExtraView: View {
                 }
 
                 // Daily Metrics Summary
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("BREAKS TODAY")
+                        Text("BREAKS")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundColor(.white.opacity(0.5))
                         Text("\(appState.breaksCompletedToday)")
@@ -198,22 +198,32 @@ public struct MenuBarExtraView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("RELIEF TIME")
+                        Text("RELIEF")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundColor(.white.opacity(0.5))
-                        Text("\(appState.totalRelaxationSecondsToday / 60) min")
+                        Text("\(appState.totalRelaxationSecondsToday / 60)m")
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundColor(.cyan)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("TBUT INDEX")
+                        Text("TBUT")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundColor(.white.opacity(0.5))
                         Text("\(appState.estimatedTearFilmScore)%")
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundColor(.amberGold)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("SCREEN")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.white.opacity(0.5))
+                        Text(appState.formattedSessionDuration)
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(.deepLavender)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -252,11 +262,11 @@ public struct MenuBarExtraView: View {
                     .buttonStyle(.plain)
 
                     Button(action: onTogglePause) {
-                        Image(systemName: appState.timerState == .pausedIdle ? "play.circle.fill" : "pause.circle.fill")
+                        Image(systemName: appState.timerState == .manuallyPaused ? "play.circle.fill" : "pause.circle.fill")
                             .font(.system(size: 16))
-                            .foregroundColor(.white.opacity(0.8))
+                            .foregroundColor(appState.timerState == .manuallyPaused ? .emeraldGreen : .white.opacity(0.8))
                             .padding(8)
-                            .background(Color.white.opacity(0.1))
+                            .background(appState.timerState == .manuallyPaused ? Color.emeraldGreen.opacity(0.15) : Color.white.opacity(0.1))
                             .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
@@ -272,6 +282,12 @@ public struct MenuBarExtraView: View {
                 Text("Gwen v1.0 • M4 Optimized")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(0.4))
+                Spacer()
+                if appState.timerState == .manuallyPaused {
+                    Text("⏸ Timer Paused")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.amberGold)
+                }
                 Spacer()
                 Button("Quit Gwen", action: onQuit)
                     .font(.system(size: 10, weight: .bold))

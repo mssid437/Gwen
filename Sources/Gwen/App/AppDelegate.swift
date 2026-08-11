@@ -57,19 +57,14 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
                 preferences: preferences,
                 onStartBreak: { [weak self] proto in
                     self?.popover?.performClose(nil)
-                    self?.breakEngine?.startBreakRoutine(protocol: proto)
+                    self?.breakEngine?.beginBreak(protocol: proto)
                 },
                 onSnooze: { [weak self] in
                     self?.popover?.performClose(nil)
-                    self?.breakEngine?.snoozeBreak(minutes: 5)
+                    self?.breakEngine?.snooze(minutes: 5)
                 },
                 onTogglePause: { [weak self] in
-                    guard let self = self else { return }
-                    if self.appState.timerState == .pausedIdle {
-                        self.breakEngine?.startEngine()
-                    } else {
-                        self.appState.timerState = .pausedIdle
-                    }
+                    self?.breakEngine?.togglePause()
                 },
                 onQuit: {
                     NSApp.terminate(nil)
@@ -114,6 +109,9 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
         case .pausedIdle:
             text = "AFK"
             symbolName = "pause.circle"
+        case .manuallyPaused:
+            text = "Paused"
+            symbolName = "pause.circle.fill"
         }
 
         button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Gwen")

@@ -5,9 +5,10 @@ import Combine
 public enum TimerState: String, Codable {
     case working = "Working"
     case preBreakWarning = "Break Approaching"
-    case inBreak = "In Break Routine"
-    case pausedIdle = "Paused (AFK Idle)"
-    case pausedMeeting = "Meeting Shield Active"
+    case inBreak = "In Break"
+    case pausedIdle = "AFK Detected"
+    case pausedMeeting = "In Meeting"
+    case manuallyPaused = "Paused"
 
     public var statusBadgeColor: Color {
         switch self {
@@ -16,6 +17,7 @@ public enum TimerState: String, Codable {
         case .inBreak: return Color.cyan
         case .pausedIdle: return Color.gray
         case .pausedMeeting: return Color.deepLavender
+        case .manuallyPaused: return Color.gray
         }
     }
 }
@@ -23,6 +25,10 @@ public enum TimerState: String, Codable {
 public class AppState: ObservableObject {
     @Published public var timerState: TimerState = .working
     @Published public var currentProtocol: OphthalmicProtocol = .microBreak
+    
+    @Published public var isPaused: Bool = false
+    @Published public var sessionStartTime: Date = Date()
+    @Published public var totalWorkSecondsToday: Int = 0
     
     /// Countdown remaining for active state in seconds.
     @Published public var secondsRemaining: Int = 1200 // 20 minutes default
@@ -66,6 +72,13 @@ public class AppState: ObservableObject {
         let mins = breakSecondsRemaining / 60
         let secs = breakSecondsRemaining % 60
         return String(format: "%02d:%02d", mins, secs)
+    }
+    
+    public var formattedSessionDuration: String {
+        let elapsed = Int(Date().timeIntervalSince(sessionStartTime))
+        let hours = elapsed / 3600
+        let minutes = (elapsed % 3600) / 60
+        return "\(hours)h \(minutes)m"
     }
 
     public init() {}

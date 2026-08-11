@@ -6,6 +6,9 @@ public struct BreakOverlayContainer: View {
     var onComplete: () -> Void
     var onSnooze: () -> Void
 
+    @State private var escMonitor: Any?
+    @State private var hasDismissed = false
+
     public var body: some View {
         ZStack {
             // Full Screen Glass Blur Backdrop
@@ -53,7 +56,7 @@ public struct BreakOverlayContainer: View {
                         .cornerRadius(8)
                     }
 
-                    Button(action: onSnooze) {
+                    Button(action: { safeDismiss(via: onSnooze) }) {
                         HStack(spacing: 4) {
                             Image(systemName: "clock.arrow.circlepath")
                             Text("Snooze 5m")
@@ -67,7 +70,7 @@ public struct BreakOverlayContainer: View {
                     }
                     .buttonStyle(.plain)
 
-                    Button(action: onComplete) {
+                    Button(action: { safeDismiss(via: onComplete) }) {
                         Text("Skip")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white.opacity(0.6))
@@ -104,13 +107,27 @@ public struct BreakOverlayContainer: View {
             }
         }
         .onAppear {
-            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            hasDismissed = false
+            escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 if event.keyCode == 53 { // ESC key
-                    onComplete()
+                    safeDismiss(via: onComplete)
                     return nil
                 }
                 return event
             }
         }
+        .onDisappear {
+            if let monitor = escMonitor {
+                NSEvent.removeMonitor(monitor)
+                escMonitor = nil
+            }
+        }
+    }
+
+    /// Prevents double-firing of completion/snooze when the user taps quickly or ESC fires concurrently
+    private func safeDismiss(via action: () -> Void) {
+        guard !hasDismissed else { return }
+        hasDismissed = true
+        action()
     }
 }
