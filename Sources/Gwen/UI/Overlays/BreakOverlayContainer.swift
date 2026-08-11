@@ -103,5 +103,14 @@ public struct BreakOverlayContainer: View {
                 Spacer()
             }
         }
+        .onAppear {
+            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == 53 { // ESC key
+                    onComplete()
+                    return nil
+                }
+                return event
+            }
+        }
     }
 }

@@ -42,8 +42,13 @@ public final class OverlayWindowController: NSWindowController {
         }, completionHandler: completion)
     }
 
-    public func fadeOut(duration: TimeInterval = 1.0, completion: (() -> Void)? = nil) {
-        guard let window = self.window else { return }
+    public func fadeOut(duration: TimeInterval = 0.4, completion: (() -> Void)? = nil) {
+        guard let window = self.window else {
+            completion?()
+            return
+        }
+
+        window.ignoresMouseEvents = true
 
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = duration

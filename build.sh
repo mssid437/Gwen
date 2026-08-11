@@ -16,8 +16,11 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
-# Copy binary
+# Copy binary & resources
 cp ".build/release/Gwen" "$MACOS_DIR/Gwen"
+if [ -f "Resources/AppIcon.icns" ]; then
+    cp "Resources/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
+fi
 
 # Create Info.plist
 cat <<EOF > "$CONTENTS_DIR/Info.plist"
@@ -27,6 +30,8 @@ cat <<EOF > "$CONTENTS_DIR/Info.plist"
 <dict>
     <key>CFBundleExecutable</key>
     <string>Gwen</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.antigravity.gwen</string>
     <key>CFBundleName</key>

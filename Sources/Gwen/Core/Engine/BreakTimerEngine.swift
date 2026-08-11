@@ -169,30 +169,44 @@ public class BreakTimerEngine: ObservableObject {
         )
     }
 
+    private var isProcessingBreakCompletion = false
+
     public func completeBreakRoutine() {
-        overlayManager.dismissBreakOverlay()
+        guard !isProcessingBreakCompletion else { return }
+        isProcessingBreakCompletion = true
 
-        appState.breaksCompletedToday += 1
-        appState.totalRelaxationSecondsToday += appState.breakTotalSeconds
-        appState.estimatedTearFilmScore = min(100, appState.estimatedTearFilmScore + 2)
+        // Set state to working immediately so tick() loop cannot re-trigger break completion
+        appState.timerState = .working
 
-        if preferences.enableSoundEffects {
-            NSSound(named: "Hero")?.play()
+        overlayManager.dismissBreakOverlay { [weak self] in
+            guard let self = self else { return }
+
+            self.appState.breaksCompletedToday += 1
+            self.appState.totalRelaxationSecondsToday += self.appState.breakTotalSeconds
+            self.appState.estimatedTearFilmScore = min(100, self.appState.estimatedTearFilmScore + 2)
+
+            if self.preferences.enableSoundEffects {
+                NSSound(named: "Hero")?.play()
+            }
+
+            // Rotate to next logical ophthalmic protocol
+            self.rotateProtocol()
+
+            self.isProcessingBreakCompletion = false
+            self.startEngine()
         }
-
-        // Rotate to next logical ophthalmic protocol
-        rotateProtocol()
-
-        // Reset timer back to work interval
-        startEngine()
     }
 
     public func snoozeBreak(minutes: Int = 5) {
-        overlayManager.dismissAllOverlays()
+        guard !isProcessingBreakCompletion else { return }
+        isProcessingBreakCompletion = true
 
         appState.timerState = .working
+        overlayManager.dismissAllOverlays()
+
         appState.secondsRemaining = minutes * 60
-        appState.totalSecondsForCurrentState = appState.secondsRemaining
+        appState.totalSecondsForCurrentState = minutes * 60
+        isProcessingBreakCompletion = false
     }
 
     private func rotateProtocol() {

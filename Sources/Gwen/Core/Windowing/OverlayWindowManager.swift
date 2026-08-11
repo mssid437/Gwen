@@ -21,33 +21,36 @@ public final class OverlayWindowManager: ObservableObject {
                 rootView: BreakOverlayContainer(
                     appState: appState,
                     preferences: preferences,
-                    onComplete: { [weak self] in
-                        self?.dismissBreakOverlay(completion: onComplete)
-                    },
-                    onSnooze: { [weak self] in
-                        self?.dismissBreakOverlay(completion: onSnooze)
-                    }
+                    onComplete: onComplete,
+                    onSnooze: onSnooze
                 )
             )
 
             let controller = OverlayWindowController(for: screen, contentView: containerView)
             overlayControllers.append(controller)
-            controller.fadeIn(duration: 1.0)
+            controller.fadeIn(duration: 0.5)
         }
     }
 
     public func dismissBreakOverlay(completion: (() -> Void)? = nil) {
+        guard !overlayControllers.isEmpty else {
+            completion?()
+            return
+        }
+
+        let controllersToDismiss = overlayControllers
+        overlayControllers.removeAll()
+
         let group = DispatchGroup()
 
-        for controller in overlayControllers {
+        for controller in controllersToDismiss {
             group.enter()
-            controller.fadeOut(duration: 0.8) {
+            controller.fadeOut(duration: 0.3) {
                 group.leave()
             }
         }
 
-        group.notify(queue: .main) { [weak self] in
-            self?.overlayControllers.removeAll()
+        group.notify(queue: .main) {
             completion?()
         }
     }
