@@ -39,8 +39,8 @@ public class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupStatusItem() {
-        // Use fixed width of 72 points to prevent menu bar layout recalculation & background flicker
-        statusItem = NSStatusBar.system.statusItem(withLength: 72.0)
+        // Use fixed width of 80 points to prevent menu bar layout recalculation & background flicker
+        statusItem = NSStatusBar.system.statusItem(withLength: 80.0)
 
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "eye.fill", accessibilityDescription: "Gwen Eye Health")

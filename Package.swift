@@ -16,6 +16,11 @@ let package = Package(
             dependencies: [],
             path: "Sources/Gwen",
             swiftSettings: []
+        ),
+        .testTarget(
+            name: "GwenTests",
+            dependencies: ["Gwen"],
+            path: "Tests/GwenTests"
         )
     ]
 )

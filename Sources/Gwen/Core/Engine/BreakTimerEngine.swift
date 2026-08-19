@@ -2,6 +2,12 @@ import Foundation
 import Combine
 import AppKit
 
+/// Writes debug output to stderr (always unbuffered, captured by terminal)
+private func debugLog(_ msg: String) {
+    let line = "[Gwen] \(msg)\n"
+    FileHandle.standardError.write(Data(line.utf8))
+}
+
 public class BreakTimerEngine: ObservableObject {
     @Published public var appState: AppState
     @Published public var preferences: UserPreferences
@@ -12,7 +18,6 @@ public class BreakTimerEngine: ObservableObject {
     
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
-    private var isTransitioningBreak = false
     
     // Protocol scheduling: track last completion time for each protocol
     private var lastProtocolCompletion: [OphthalmicProtocol: Date] = [:]
@@ -68,10 +73,11 @@ public class BreakTimerEngine: ObservableObject {
     public func startWorkTimer() {
         timer?.invalidate()
         timer = nil
-        isTransitioningBreak = false
         appState.timerState = .working
         appState.secondsRemaining = preferences.microBreakIntervalMinutes * 60
         appState.totalSecondsForCurrentState = appState.secondsRemaining
+        
+        debugLog("🟢 startWorkTimer: interval=\(appState.secondsRemaining)s")
         
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.tick()
@@ -85,6 +91,7 @@ public class BreakTimerEngine: ObservableObject {
         // Meeting shield check
         if preferences.enableMeetingShield && contextMonitor.isMeetingActive {
             if appState.timerState != .pausedMeeting {
+                debugLog("⏸ Meeting detected, pausing")
                 appState.timerState = .pausedMeeting
                 overlayManager.dismissToast()
             }
@@ -94,6 +101,7 @@ public class BreakTimerEngine: ObservableObject {
         // AFK idle check
         if preferences.enableIdleDetection && contextMonitor.isUserIdle {
             if appState.timerState != .pausedIdle {
+                debugLog("⏸ User idle, pausing")
                 appState.timerState = .pausedIdle
                 overlayManager.dismissToast()
             }
@@ -102,6 +110,7 @@ public class BreakTimerEngine: ObservableObject {
         
         // Auto-recover from AFK/Meeting pauses (NOT manual pause)
         if appState.timerState == .pausedMeeting || appState.timerState == .pausedIdle {
+            debugLog("▶️ Recovering from pause -> working")
             appState.timerState = .working
         }
         
@@ -114,10 +123,15 @@ public class BreakTimerEngine: ObservableObject {
         case .working:
             if appState.secondsRemaining > 0 {
                 appState.secondsRemaining -= 1
+                // Log countdown every 5 seconds to show ticking
+                if appState.secondsRemaining % 5 == 0 {
+                    debugLog("⏱ tick: \(appState.secondsRemaining)s remaining")
+                }
                 if preferences.enablePreBreakToast && appState.secondsRemaining == preferences.preBreakToastSeconds {
                     triggerPreBreakWarning()
                 }
             } else {
+                debugLog("⏰ Timer hit zero, starting break")
                 beginBreak(protocol: nextDueProtocol())
             }
             
@@ -125,13 +139,19 @@ public class BreakTimerEngine: ObservableObject {
             if appState.secondsRemaining > 0 {
                 appState.secondsRemaining -= 1
             } else {
+                debugLog("⏰ Pre-break warning expired, starting break")
                 beginBreak(protocol: nextDueProtocol())
             }
             
         case .inBreak:
             if appState.breakSecondsRemaining > 0 {
                 appState.breakSecondsRemaining -= 1
+                // Log break countdown every 5 seconds
+                if appState.breakSecondsRemaining % 5 == 0 {
+                    debugLog("🔵 break tick: \(appState.breakSecondsRemaining)s remaining")
+                }
             } else {
+                debugLog("✅ Break timer hit zero, finishing break")
                 finishBreak()
             }
             
@@ -155,21 +175,25 @@ public class BreakTimerEngine: ObservableObject {
                 mostOverdue = proto
             }
         }
+        debugLog("📋 nextDueProtocol: \(mostOverdue.rawValue)")
         return mostOverdue
     }
     
     private var sessionStartDate = Date()
     
     private func triggerPreBreakWarning() {
+        debugLog("⚠️ triggerPreBreakWarning")
         appState.timerState = .preBreakWarning
         if preferences.enableSoundEffects { NSSound.beep() }
         
         overlayManager.showPreBreakToast(
             appState: appState,
             onStartNow: { [weak self] in
+                debugLog("👆 User tapped Start Now on toast")
                 self?.beginBreak(protocol: self?.nextDueProtocol() ?? .microBreak)
             },
             onSnooze: { [weak self] in
+                debugLog("💤 User tapped Snooze on toast")
                 self?.snooze(minutes: 5)
             }
         )
@@ -177,8 +201,11 @@ public class BreakTimerEngine: ObservableObject {
     
     // CRITICAL: This is the only method that shows the break overlay
     public func beginBreak(protocol targetProtocol: OphthalmicProtocol) {
-        guard !isTransitioningBreak else { return }
-        isTransitioningBreak = true
+        debugLog("🔵 beginBreak called: proto=\(targetProtocol.rawValue) state=\(appState.timerState.rawValue)")
+        guard appState.timerState != .inBreak else {
+            debugLog("⛔ beginBreak BLOCKED: already in break")
+            return
+        }
         
         overlayManager.dismissToast()
         
@@ -191,23 +218,31 @@ public class BreakTimerEngine: ObservableObject {
             NSSound(named: "Glass")?.play()
         }
         
-        isTransitioningBreak = false
+        debugLog("🔵 beginBreak: overlay presenting, breakSeconds=\(targetProtocol.defaultDurationSeconds)")
         
         overlayManager.presentBreakOverlay(
             appState: appState,
             preferences: preferences,
-            onComplete: { [weak self] in self?.finishBreak() },
-            onSnooze: { [weak self] in self?.snooze(minutes: 5) }
+            onComplete: { [weak self] in
+                debugLog("👆 User tapped Skip/Complete on overlay")
+                self?.finishBreak()
+            },
+            onSnooze: { [weak self] in
+                debugLog("💤 User tapped Snooze on overlay")
+                self?.snooze(minutes: 5)
+            }
         )
     }
     
     // CRITICAL: This is the only method that ends a break
     public func finishBreak() {
-        guard !isTransitioningBreak else { return }
-        guard appState.timerState == .inBreak else { return }
-        isTransitioningBreak = true
+        debugLog("🟡 finishBreak called: state=\(appState.timerState.rawValue)")
+        guard appState.timerState == .inBreak else {
+            debugLog("⛔ finishBreak BLOCKED: state is \(appState.timerState.rawValue), not inBreak")
+            return
+        }
         
-        // IMMEDIATELY change state so tick() cannot re-enter
+        // IMMEDIATELY change state so tick() and button presses cannot re-enter
         appState.timerState = .working
         appState.secondsRemaining = preferences.microBreakIntervalMinutes * 60
         appState.totalSecondsForCurrentState = appState.secondsRemaining
@@ -218,37 +253,49 @@ public class BreakTimerEngine: ObservableObject {
         appState.estimatedTearFilmScore = min(100, appState.estimatedTearFilmScore + 2)
         lastProtocolCompletion[appState.currentProtocol] = Date()
         
+        debugLog("🟡 finishBreak: state->working, breaks=\(appState.breaksCompletedToday), nextInterval=\(appState.secondsRemaining)s")
+        
         if preferences.enableSoundEffects {
             NSSound(named: "Hero")?.play()
         }
         
-        // Dismiss overlay async — state is already safe
-        overlayManager.dismissBreakOverlay { [weak self] in
-            self?.isTransitioningBreak = false
+        // Dismiss overlay
+        overlayManager.dismissBreakOverlay {
+            debugLog("🟡 finishBreak: overlay dismissed")
         }
     }
     
     public func snooze(minutes: Int = 5) {
-        guard appState.timerState == .inBreak || appState.timerState == .preBreakWarning else { return }
+        debugLog("💤 snooze called: state=\(appState.timerState.rawValue)")
+        guard appState.timerState == .inBreak || appState.timerState == .preBreakWarning else {
+            debugLog("⛔ snooze BLOCKED: state is \(appState.timerState.rawValue)")
+            return
+        }
         
         // IMMEDIATELY change state
         appState.timerState = .working
         appState.secondsRemaining = minutes * 60
         appState.totalSecondsForCurrentState = minutes * 60
         
+        debugLog("💤 snooze: state->working, snoozeSeconds=\(minutes * 60)")
+        
         overlayManager.dismissAllOverlays()
     }
     
     // Called by the UI pause button
     public func togglePause() {
+        debugLog("⏯ togglePause called: current state=\(appState.timerState.rawValue)")
         if appState.timerState == .manuallyPaused {
             // Resume
+            debugLog("⏯ togglePause: resuming -> .working")
             appState.timerState = .working
         } else if appState.timerState == .working || appState.timerState == .preBreakWarning {
             // Pause
+            debugLog("⏯ togglePause: pausing -> .manuallyPaused")
             appState.timerState = .manuallyPaused
             overlayManager.dismissToast()
+        } else {
+            debugLog("⏯ togglePause: ignored (state=\(appState.timerState.rawValue))")
         }
-        // Do nothing if in break or other states
     }
 }
